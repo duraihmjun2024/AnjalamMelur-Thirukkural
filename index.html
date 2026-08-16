@@ -27,8 +27,11 @@ sidebar.collapsed{width:0;min-width:0;overflow:hidden;border-right:0}
 .content-area{flex:1;display:flex;flex-direction:column;min-width:0;min-height:0;background:var(--bg)}
 .control-bar{padding:3px 6px;background:var(--card);border-bottom:1px solid #334155;display:flex;align-items:center;gap:6px;min-height:36px}
 .current-title{font-size:12px;font-weight:bold;color:var(--accent);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1}
-.search-box{display:flex;align-items:center;gap:4px;flex:0 0 240px;order:-1}
-.search-box input{width:180px;background:#0f172a;color:#f8fafc;border:1px solid #64748b;border-radius:3px;padding:3px 6px;font-size:11px}
+
+/* Autofit Search Box */
+.search-box{display:flex;align-items:center;gap:3px;flex:0 0 auto;width:auto;order:-1}
+.search-box input{width:130px;background:#0f172a;color:#f8fafc;border:1px solid #64748b;border-radius:3px;padding:3px 5px;font-size:11px}
+
 .score-box,.timer-box,.speed-box{flex:0 0 auto;background:#0f172a;border:1px solid #475569;border-radius:3px;padding:2px 6px;font-size:11px;font-weight:bold;white-space:nowrap;color:var(--accent)}
 .speed-box select{background:#0f172a;color:var(--accent);border:0;font-size:11px;font-weight:bold;outline:none;cursor:pointer}
 .auto-next-box{display:flex;align-items:center;gap:4px;background:#0f172a;border:1px solid #475569;border-radius:3px;padding:2px 6px;font-size:11px;font-weight:bold;color:var(--accent);cursor:pointer}
@@ -48,9 +51,9 @@ sidebar.collapsed{width:0;min-width:0;overflow:hidden;border-right:0}
 .kural-line-wrapper{display:flex;justify-content:space-between;align-items:flex-start;width:100%;gap:4px}
 .kural-text{font-size:clamp(11px,1.25vh,14px);font-weight:600;line-height:1.3;flex:1;cursor:pointer}
 
-/* Highlighting Whole Phrase & Pipe Styling */
+/* Phrase Highlighting & Separator */
 .kural-pipe{color:var(--pipe-color);font-weight:bold;padding:0 3px}
-.phrase-span{display:inline;border-radius:2px;padding:1px 0;transition:background 0.1s ease}
+.phrase-span{display:inline;border-radius:2px;padding:1px 2px;transition:background 0.1s ease}
 .phrase-span.active-phrase{background:var(--highlight);color:#000;font-weight:bold}
 
 .kural-number-badge{background:rgba(234,179,8,.15);color:var(--accent);font-size:10px;font-weight:bold;padding:1px 4px;border-radius:3px;border:1px solid var(--accent);white-space:nowrap;flex-shrink:0}
@@ -80,7 +83,7 @@ sidebar.collapsed{width:0;min-width:0;overflow:hidden;border-right:0}
 .report-actions{display:flex;justify-content:flex-end;margin-top:10px}
 @media(max-width:800px){
   .kurals-container{grid-template-columns:1fr;grid-template-rows:none;overflow-y:auto}
-  .search-box{flex:1;min-width:0}.search-box input{width:90px}
+  .search-box input{width:80px}
 }
 </style>
 </head>
@@ -102,13 +105,12 @@ sidebar.collapsed{width:0;min-width:0;overflow:hidden;border-right:0}
   <div class="content-area">
     <div class="control-bar">
       <div class="search-box">
-        <input id="kuralSearchInput" type="text" placeholder="21-30/41,42/சொல்" autocomplete="off">
+        <input id="kuralSearchInput" type="text" placeholder="1-10 / சொல்" autocomplete="off">
         <button id="btnSearchKurals" class="btn">🔍</button>
         <button id="btnClearSearch" class="btn">✖</button>
       </div>
       <div class="current-title" id="currentTitle">1. கடவுள் வாழ்த்து</div>
       
-      <!-- TTS Speed Spinner -->
       <div class="speed-box" title="TTS வாசிப்பு வேகம்">
         ⚡ வேகம்: 
         <select id="ttsSpeedSelect">
@@ -167,8 +169,9 @@ sidebar.collapsed{width:0;min-width:0;overflow:hidden;border-right:0}
 
 
 
+
 <script>
-const GAS_API_URL = "https://script.google.com/macros/s/AKfycbyjYi2d9SRXXzlPumnK1BqJMXhKObK4cDb-cIBhklvlzG99TWBeVrPFRvttCVpwA6vP/exec"; 
+const GAS_API_URL = "https://script.google.com/macros/s/AKfycbx9Fh5oCHSB4UoY9vUr3TXtUfU2RUgEslnywRR8RMlT2FIZBM76Ux3OxSNMIXObaURc/exec"; 
 
 const adhikaramList = [
 "1. கடவுள் வாழ்த்து","2. வான் சிறப்பு","3. நீத்தார் பெருமை","4. அறன் வலியுறுத்தல்","5. இல்வாழ்க்கை",
@@ -203,7 +206,6 @@ const adhikaramList = [
 let currentAdhikaramIdx = 0;
 let loadedKurals = {};
 let isPlaying = false;
-let currentSpeechIndex = -1;
 let synth = window.speechSynthesis;
 let sessionStartTime = Date.now();
 
@@ -304,7 +306,6 @@ function escapeHtml(value){
   return String(value ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
 }
 
-// Renders complete phrase inclusive of all words and spaces up to |
 function renderFormattedKuralText(text, cardIdx){
   const clean = String(text || '').trim();
   if(!clean.includes('|')) {
@@ -646,49 +647,55 @@ function checkKuralCompleted(cardIdx){
   }
 }
 
-/* Continuous & Seamless TTS Playback Logic */
-function speakSingleKuralParts(cardIdx){
-  stopSpeech();
+/* Fast Phrase-by-Phrase Sequential TTS Playback with 50% Reduced Inter-Phrase Delays */
+function speakPhraseSequence(cardIdx, phraseIdx){
+  if(!isPlaying) return;
+
   const card = document.getElementById('kural-card-' + cardIdx);
-  if(!card) return;
+  if(!card){
+    stopSpeech();
+    return;
+  }
 
   const boxes = card.querySelectorAll('.voice-expected');
-  if(!boxes.length) return;
+  if(phraseIdx >= boxes.length){
+    // Card finished, proceed to next card after brief transition pause
+    const nextCard = cardIdx + 1;
+    const cards = document.querySelectorAll('.kural-card');
+    if(nextCard < cards.length){
+      setTimeout(() => speakPhraseSequence(nextCard, 0), 150);
+    } else {
+      stopSpeech();
+    }
+    return;
+  }
 
-  isPlaying = true;
-  currentSpeechIndex = cardIdx;
+  // Clear previous phrase highlights
+  document.querySelectorAll('.phrase-span').forEach(el => el.classList.remove('active-phrase'));
 
-  // Retrieve user-selected TTS speech rate
+  // Highlight current phrase specifically on phrase index (split on '|')
+  const currentSpan = document.getElementById(`phrase-${cardIdx}-${phraseIdx}`);
+  if(currentSpan) currentSpan.classList.add('active-phrase');
+
+  const rawPhrase = boxes[phraseIdx].innerText;
+  // Clean internal punctuation to make utterance continuous without inner delays
+  const cleanPhrase = rawPhrase.replace(/[.,!?;:]/g, '').trim();
+
   const speedRate = parseFloat(document.getElementById('ttsSpeedSelect').value) || 1.0;
-
-  // Concatenate phrases without punctuation pauses
-  let fullCleanSpeechText = Array.from(boxes).map(b => b.innerText.trim()).join(' ');
-
-  const utterance = new SpeechSynthesisUtterance(fullCleanSpeechText);
+  const utterance = new SpeechSynthesisUtterance(cleanPhrase);
   utterance.lang = 'ta-IN';
   utterance.rate = speedRate;
 
-  utterance.onstart = () => {
-    document.querySelectorAll('.phrase-span').forEach(el => el.classList.remove('active-phrase'));
-    // Highlight full card text up to pipe
-    const p0 = document.getElementById(`phrase-${cardIdx}-0`);
-    const p1 = document.getElementById(`phrase-${cardIdx}-1`);
-    if(p0) p0.classList.add('active-phrase');
-    if(p1) p1.classList.add('active-phrase');
-  };
-
   utterance.onend = () => {
-    document.querySelectorAll('#kural-card-' + cardIdx + ' .phrase-span').forEach(el => el.classList.remove('active-phrase'));
-    const nextCard = cardIdx + 1;
-    const cards = document.querySelectorAll('.kural-card');
-    if(isPlaying && nextCard < cards.length){
-      speakSingleKuralParts(nextCard);
-    } else {
-      stopSpeech();
+    if(currentSpan) currentSpan.classList.remove('active-phrase');
+    if(isPlaying){
+      // Reduced delay by 50% (~150ms) between phrases
+      setTimeout(() => speakPhraseSequence(cardIdx, phraseIdx + 1), 150);
     }
   };
 
   utterance.onerror = () => stopSpeech();
+
   synth.cancel();
   synth.speak(utterance);
 }
@@ -697,12 +704,11 @@ function startContinuousPlay(){
   stopSpeech();
   if(!document.querySelector('.kural-card')) return;
   isPlaying = true;
-  speakSingleKuralParts(0);
+  speakPhraseSequence(0, 0);
 }
 
 function stopSpeech(){
   isPlaying = false;
-  currentSpeechIndex = -1;
   if(synth) synth.cancel();
   document.querySelectorAll('.phrase-span').forEach(el => el.classList.remove('active-phrase'));
 }
@@ -822,7 +828,6 @@ function showFinalReport(){
   .then(res => console.log('Report sync response:', res))
   .catch(err => console.error('Report sync error:', err));
 }
-
 </script>
 </body>
 </html>
