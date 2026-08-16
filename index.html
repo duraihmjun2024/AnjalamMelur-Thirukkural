@@ -29,7 +29,8 @@ sidebar.collapsed{width:0;min-width:0;overflow:hidden;border-right:0}
 .current-title{font-size:12px;font-weight:bold;color:var(--accent);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1}
 .search-box{display:flex;align-items:center;gap:4px;flex:0 0 240px;order:-1}
 .search-box input{width:180px;background:#0f172a;color:#f8fafc;border:1px solid #64748b;border-radius:3px;padding:3px 6px;font-size:11px}
-.score-box,.timer-box{flex:0 0 auto;background:#0f172a;border:1px solid #475569;border-radius:3px;padding:2px 6px;font-size:11px;font-weight:bold;white-space:nowrap}
+.score-box,.timer-box,.speed-box{flex:0 0 auto;background:#0f172a;border:1px solid #475569;border-radius:3px;padding:2px 6px;font-size:11px;font-weight:bold;white-space:nowrap;color:var(--accent)}
+.speed-box select{background:#0f172a;color:var(--accent);border:0;font-size:11px;font-weight:bold;outline:none;cursor:pointer}
 .auto-next-box{display:flex;align-items:center;gap:4px;background:#0f172a;border:1px solid #475569;border-radius:3px;padding:2px 6px;font-size:11px;font-weight:bold;color:var(--accent);cursor:pointer}
 .auto-next-box input{cursor:pointer}
 .score-value{color:#86efac;font-size:13px}
@@ -45,11 +46,12 @@ sidebar.collapsed{width:0;min-width:0;overflow:hidden;border-right:0}
 .kural-card{background:var(--card);border-radius:4px;padding:6px 8px;border:1px solid #334155;display:flex;flex-direction:column;justify-content:space-between;height:100%;min-height:0}
 .kural-card.active-rec{border-color:var(--accent);background:#1e293b;box-shadow:0 0 8px rgba(234,179,8,0.4)}
 .kural-line-wrapper{display:flex;justify-content:space-between;align-items:flex-start;width:100%;gap:4px}
-.kural-text{font-size:clamp(11px,1.25vh,14px);font-weight:600;line-height:1.2;flex:1;cursor:pointer}
+.kural-text{font-size:clamp(11px,1.25vh,14px);font-weight:600;line-height:1.3;flex:1;cursor:pointer}
 
-/* Highlight & Pipe Formatting */
+/* Highlighting Whole Phrase & Pipe Styling */
 .kural-pipe{color:var(--pipe-color);font-weight:bold;padding:0 3px}
-.word.active-phrase{background:var(--highlight);color:#000;font-weight:bold;border-radius:2px;padding:0 2px}
+.phrase-span{display:inline;border-radius:2px;padding:1px 0;transition:background 0.1s ease}
+.phrase-span.active-phrase{background:var(--highlight);color:#000;font-weight:bold}
 
 .kural-number-badge{background:rgba(234,179,8,.15);color:var(--accent);font-size:10px;font-weight:bold;padding:1px 4px;border-radius:3px;border:1px solid var(--accent);white-space:nowrap;flex-shrink:0}
 .voice-response-row{display:flex;flex-direction:column;gap:3px;margin-top:4px;width:100%}
@@ -105,6 +107,20 @@ sidebar.collapsed{width:0;min-width:0;overflow:hidden;border-right:0}
         <button id="btnClearSearch" class="btn">✖</button>
       </div>
       <div class="current-title" id="currentTitle">1. கடவுள் வாழ்த்து</div>
+      
+      <!-- TTS Speed Spinner -->
+      <div class="speed-box" title="TTS வாசிப்பு வேகம்">
+        ⚡ வேகம்: 
+        <select id="ttsSpeedSelect">
+          <option value="0.75">0.75x</option>
+          <option value="1.0" selected>1.0x</option>
+          <option value="1.25">1.25x</option>
+          <option value="1.5">1.5x</option>
+          <option value="1.75">1.75x</option>
+          <option value="2.0">2.0x</option>
+        </select>
+      </div>
+
       <label class="auto-next-box" title="10 குறள்கள் முடிந்ததும் அடுத்த அதிகாரத்திற்கு தானாகச் செல்ல">
         <input type="checkbox" id="chkAutoNext"> ⚡ Auto Next
       </label>
@@ -150,8 +166,9 @@ sidebar.collapsed{width:0;min-width:0;overflow:hidden;border-right:0}
 </div>
 
 
+
 <script>
-const GAS_API_URL = "https://script.google.com/macros/s/AKfycbyhqhPq1pSwx3d42wjFmcX_2rmL2ibsEoUqr8nrWOaq4u2cZWPPUlicV6d9pAnEysPD/exec"; 
+const GAS_API_URL = "https://script.google.com/macros/s/AKfycbyckKOibxUUoAK1CT3ZdZBGLUW5M2DC8dghBpJ1jE0cH9-rfG-5_d1nUROeLPdXNlTv/exec"; 
 
 const adhikaramList = [
 "1. கடவுள் வாழ்த்து","2. வான் சிறப்பு","3. நீத்தார் பெருமை","4. அறன் வலியுறுத்தல்","5. இல்வாழ்க்கை",
@@ -287,20 +304,20 @@ function escapeHtml(value){
   return String(value ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
 }
 
+// Renders complete phrase inclusive of all words and spaces up to |
 function renderFormattedKuralText(text, cardIdx){
   const clean = String(text || '').trim();
-  const tokens = clean.split(/\s+/).filter(Boolean);
-  let html = '';
+  if(!clean.includes('|')) {
+    return `<span class="phrase-span" id="phrase-${cardIdx}-0">${escapeHtml(clean)}</span>`;
+  }
 
-  tokens.forEach((token, idx) => {
-    if(token === '|'){
-      html += '<span class="kural-pipe">|</span> ';
-    } else {
-      html += '<span class="word" id="w-' + cardIdx + '-' + idx + '">' + escapeHtml(token) + '</span> ';
-    }
-  });
+  const parts = clean.split('|');
+  const part1 = parts[0].trim();
+  const part2 = parts.slice(1).join('|').trim();
 
-  return html.trim();
+  return `<span class="phrase-span" id="phrase-${cardIdx}-0">${escapeHtml(part1)}</span>` +
+         ` <span class="kural-pipe">|</span> ` +
+         `<span class="phrase-span" id="phrase-${cardIdx}-1">${escapeHtml(part2)}</span>`;
 }
 
 function renderKuralsGrid(numbersArray){
@@ -324,7 +341,6 @@ function renderKuralsGrid(numbersArray){
 
     const fullKural = String(kural.text || '').trim();
     
-    // Split into Part 1 (up to |) and Part 2 (after |)
     let parts = [];
     if(fullKural.includes('|')){
       parts = fullKural.split('|').map(s => s.trim()).filter(Boolean);
@@ -473,14 +489,14 @@ function listenNextSegmentSingleAttempt(){
   const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
   if(recognitionInstance){ 
     try{ 
-      recognitionInstance.onend = null; // Prevent accidental trigger on abort
+      recognitionInstance.onend = null; 
       recognitionInstance.abort(); 
     }catch(e){} 
   }
 
   recognitionInstance = new SpeechRecognition();
   recognitionInstance.lang = 'ta-IN';
-  recognitionInstance.continuous = false; // Single attempt
+  recognitionInstance.continuous = false;
   recognitionInstance.interimResults = true;
 
   recognitionInstance.onresult = function(event){
@@ -496,16 +512,13 @@ function listenNextSegmentSingleAttempt(){
     if(responseEl && txt) responseEl.textContent = txt;
   };
 
-  // Safely evaluate when recognition completes natural audio cycle
   recognitionInstance.onend = function(){
     if(recognitionActive){
       finishSegmentAndProceed();
     }
   };
 
-  recognitionInstance.onerror = function(event){
-    console.warn('Speech Recognition Event Info:', event.error);
-    // Even on speech error or no-speech timeout, gracefully record missed attempt and step forward once
+  recognitionInstance.onerror = function(){
     if(recognitionActive){
       finishSegmentAndProceed();
     }
@@ -514,7 +527,6 @@ function listenNextSegmentSingleAttempt(){
   try {
     recognitionInstance.start();
   } catch(e) {
-    console.error(e);
     if(recognitionActive){
       finishSegmentAndProceed();
     }
@@ -522,7 +534,6 @@ function listenNextSegmentSingleAttempt(){
 }
 
 function finishSegmentAndProceed(){
-  // Prevent duplicate trigger execution loop
   if(recognitionInstance){
     try{ 
       recognitionInstance.onend = null; 
@@ -545,18 +556,14 @@ function finishSegmentAndProceed(){
   updateKuralScore(currentCardIdx);
   updateOverallScore();
 
-  // Increment step strictly once after storing response
   currentPartIdx++;
 
   if(recognitionActive){
-    // Small delay ensures previous instance releases audio input before starting next box
     setTimeout(() => {
       listenNextSegmentSingleAttempt();
     }, 400);
   }
 }
-
-
 
 function stopVoiceRecognition(){
   recognitionActive = false;
@@ -639,7 +646,7 @@ function checkKuralCompleted(cardIdx){
   }
 }
 
-// Single-Attempt Part-by-Part TTS Playback
+/* Continuous & Seamless TTS Playback Logic */
 function speakSingleKuralParts(cardIdx){
   stopSpeech();
   const card = document.getElementById('kural-card-' + cardIdx);
@@ -651,49 +658,39 @@ function speakSingleKuralParts(cardIdx){
   isPlaying = true;
   currentSpeechIndex = cardIdx;
 
-  let partIdx = 0;
-  
-  function playNextPart(){
-    if(!isPlaying || partIdx >= boxes.length){
-      document.querySelectorAll('#kural-card-' + cardIdx + ' .word').forEach(el => el.classList.remove('active-phrase'));
-      const nextCard = cardIdx + 1;
-      const cards = document.querySelectorAll('.kural-card');
-      if(isPlaying && nextCard < cards.length){
-        speakSingleKuralParts(nextCard);
-      } else {
-        stopSpeech();
-      }
-      return;
+  // Retrieve user-selected TTS speech rate
+  const speedRate = parseFloat(document.getElementById('ttsSpeedSelect').value) || 1.0;
+
+  // Concatenate phrases without punctuation pauses
+  let fullCleanSpeechText = Array.from(boxes).map(b => b.innerText.trim()).join(' ');
+
+  const utterance = new SpeechSynthesisUtterance(fullCleanSpeechText);
+  utterance.lang = 'ta-IN';
+  utterance.rate = speedRate;
+
+  utterance.onstart = () => {
+    document.querySelectorAll('.phrase-span').forEach(el => el.classList.remove('active-phrase'));
+    // Highlight full card text up to pipe
+    const p0 = document.getElementById(`phrase-${cardIdx}-0`);
+    const p1 = document.getElementById(`phrase-${cardIdx}-1`);
+    if(p0) p0.classList.add('active-phrase');
+    if(p1) p1.classList.add('active-phrase');
+  };
+
+  utterance.onend = () => {
+    document.querySelectorAll('#kural-card-' + cardIdx + ' .phrase-span').forEach(el => el.classList.remove('active-phrase'));
+    const nextCard = cardIdx + 1;
+    const cards = document.querySelectorAll('.kural-card');
+    if(isPlaying && nextCard < cards.length){
+      speakSingleKuralParts(nextCard);
+    } else {
+      stopSpeech();
     }
+  };
 
-    const phraseText = boxes[partIdx].innerText.trim();
-    const utterance = new SpeechSynthesisUtterance(phraseText);
-    utterance.lang = 'ta-IN';
-    utterance.rate = 1.0;
-
-    utterance.onstart = () => {
-      // Highlight corresponding words
-      const allWords = Array.from(card.querySelectorAll('.word'));
-      allWords.forEach(w => {
-        if(phraseText.includes(w.innerText.trim())){
-          w.classList.add('active-phrase');
-        } else {
-          w.classList.remove('active-phrase');
-        }
-      });
-    };
-
-    utterance.onend = () => {
-      partIdx++;
-      setTimeout(playNextPart, 300); // Brief natural pause between parts
-    };
-
-    utterance.onerror = () => stopSpeech();
-    synth.cancel();
-    synth.speak(utterance);
-  }
-
-  playNextPart();
+  utterance.onerror = () => stopSpeech();
+  synth.cancel();
+  synth.speak(utterance);
 }
 
 function startContinuousPlay(){
@@ -707,7 +704,7 @@ function stopSpeech(){
   isPlaying = false;
   currentSpeechIndex = -1;
   if(synth) synth.cancel();
-  document.querySelectorAll('.word').forEach(el => el.classList.remove('active-phrase'));
+  document.querySelectorAll('.phrase-span').forEach(el => el.classList.remove('active-phrase'));
 }
 
 function parseKuralSearchInput(value){
@@ -827,6 +824,8 @@ function showFinalReport(){
 }
 
 </script>
-
 </body>
 </html>
+
+
+<
