@@ -3,7 +3,7 @@
  * Code.gs — REST API BACKEND FOR GITHUB PAGES & APPS SCRIPT
  ***************************************************************/
 
-const KURAL_SOURCE_SPREADSHEET_ID = '13JdpPtzsZOZ4s6S9Hfih6lN0c5-0VJTdwBTLBtT0y4k';
+const KURAL_SOURCE_SPREADSHEET_ID = '13JdpPtzsZOZ4s3s9Hfih6lN0c5-0VJTdwBTLBtT0y4k';
 const KURAL_SOURCE_START_ROW = 2;
 const KURAL_SOURCE_NUM_COLUMN = 3;
 const KURAL_SOURCE_TEXT_COLUMN = 4;
