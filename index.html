@@ -127,7 +127,7 @@ sidebar.collapsed{width:0;min-width:0;overflow:hidden;border-right:0}
 
 <div class="modal-backdrop" id="reportModal">
   <div class="report-modal">
-    <h2>🏆 10 குறள்கள் — கற்றல் அறிக்கை</h2>
+    <h2>🏆 கற்றல் அறிக்கை</h2>
     <div class="report-grid">
       <div>பெயர்</div><div id="reportName">-</div>
       <div>WhatsApp</div><div id="reportWhatsApp">-</div>
@@ -142,7 +142,7 @@ sidebar.collapsed{width:0;min-width:0;overflow:hidden;border-right:0}
 
 <script>
 // REPLACE WITH YOUR DEPLOYED GOOGLE APPS SCRIPT WEB APP EXEC URL
-const GAS_API_URL = "https://script.google.com/macros/s/AKfycbwHhDlaKtStIGqdkDXZXE1kaOVcL8MbnGj10Ui26Mw8FYSOUkf_eBE2UOFyNcYV55Cm/exec"; 
+const GAS_API_URL = "https://script.google.com/macros/s/AKfycbxecc74YpZMIc8GZfz4pGf5goKOFYzvtqnQFqu0olKCaAFeW5EJ-yW_T1epaDtcPNSh/exec"; 
 
 const adhikaramList = [
 "1. கடவுள் வாழ்த்து","2. வான் சிறப்பு","3. நீத்தார் பெருமை","4. அறன் வலியுறுத்தல்","5. இல்வாழ்க்கை",
@@ -187,10 +187,9 @@ let currentCardIdx = 0;
 let currentPartIdx = 0;
 let recognitionScores = {};
 let completedKurals = new Set();
-let reportSubmitted = false;
 let silenceTimer = null;
 let capturedTranscript = "";
-const SILENCE_GAP_MS = 2500; // Gap duration (2.5 seconds) to trigger auto-advancement
+const SILENCE_GAP_MS = 2500;
 
 document.addEventListener('DOMContentLoaded', () => {
   renderAdhikaramSidebar();
@@ -332,10 +331,6 @@ function renderKuralsGrid(numbersArray){
 }
 
 function toggleMasterMic(){
-  if(reportSubmitted){
-    alert('10 குறள்களின் அறிக்கை ஏற்கனவே பதிவு செய்யப்பட்டுள்ளது.');
-    return;
-  }
   if(recognitionActive){
     stopVoiceRecognition();
     return;
@@ -390,6 +385,9 @@ function startSequentialRecognition(){
   }
 
   recognitionActive = true;
+  currentCardIdx = 0;
+  currentPartIdx = 0;
+
   const masterBtn = document.getElementById('btnMasterMic');
   masterBtn.classList.add('listening');
   masterBtn.textContent = '⏹ நிறுத்து';
@@ -430,7 +428,7 @@ function listenNextSegment(){
   if(activeBox) activeBox.classList.add('listening-box');
 
   const responseEl = document.getElementById('voice-response-' + currentCardIdx + '-' + currentPartIdx);
-  if(responseEl) responseEl.textContent = '🎙 பேசுங்கள் (இடைவெளி விட்டால் அடுத்த பகுதிக்குச் செல்லும்)...';
+  if(responseEl) responseEl.textContent = '🎙 பேசுங்கள்...';
 
   capturedTranscript = "";
   clearTimeout(silenceTimer);
@@ -455,7 +453,6 @@ function listenNextSegment(){
     const txt = (capturedTranscript + ' ' + interim).trim();
     if(responseEl && txt) responseEl.textContent = txt;
 
-    // Reset silence gap timer whenever new speech activity is detected
     clearTimeout(silenceTimer);
     silenceTimer = setTimeout(() => {
       if(recognitionActive) {
@@ -573,15 +570,11 @@ function getCurrentScore(){
 function checkKuralCompleted(cardIdx){
   const card = document.getElementById('kural-card-' + cardIdx);
   if(!card) return;
-  const boxes = card.querySelectorAll('.voice-box');
-  const scores = recognitionScores[cardIdx] || {};
-  const allDone = [...boxes].every((_, i) => Object.prototype.hasOwnProperty.call(scores, i));
-  if(!allDone) return;
-
   const num = Number(card.querySelector('.kural-number-badge').textContent.replace(/[^\d]/g, ''));
   completedKurals.add(num);
 
-  if(completedKurals.size >= 10 && !reportSubmitted){
+  const totalCards = document.querySelectorAll('.kural-card').length;
+  if(completedKurals.size >= totalCards && totalCards > 0){
     showFinalReport();
   }
 }
@@ -728,7 +721,6 @@ function formatTime(seconds){
 }
 
 function showFinalReport(){
-  reportSubmitted = true;
   stopVoiceRecognition();
 
   const score = getCurrentScore();
