@@ -151,7 +151,7 @@ sidebar.collapsed{width:0;min-width:0;overflow:hidden;border-right:0}
 
 
 <script>
-const GAS_API_URL = "https://script.google.com/macros/s/AKfycbymGoS39BP1YRsa7025Z_Z7b9puImjgRGsokK4Zp1MPEEil_IuUkRrU3ZiN7cN5Lhar/exec"; 
+const GAS_API_URL = "https://script.google.com/macros/s/AKfycbyhqhPq1pSwx3d42wjFmcX_2rmL2ibsEoUqr8nrWOaq4u2cZWPPUlicV6d9pAnEysPD/exec"; 
 
 const adhikaramList = [
 "1. கடவுள் வாழ்த்து","2. வான் சிறப்பு","3. நீத்தார் பெருமை","4. அறன் வலியுறுத்தல்","5. இல்வாழ்க்கை",
@@ -471,11 +471,16 @@ function listenNextSegmentSingleAttempt(){
   capturedTranscript = "";
 
   const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-  if(recognitionInstance){ try{ recognitionInstance.abort(); }catch(e){} }
+  if(recognitionInstance){ 
+    try{ 
+      recognitionInstance.onend = null; // Prevent accidental trigger on abort
+      recognitionInstance.abort(); 
+    }catch(e){} 
+  }
 
   recognitionInstance = new SpeechRecognition();
   recognitionInstance.lang = 'ta-IN';
-  recognitionInstance.continuous = false; // Single attempt mode
+  recognitionInstance.continuous = false; // Single attempt
   recognitionInstance.interimResults = true;
 
   recognitionInstance.onresult = function(event){
@@ -491,13 +496,16 @@ function listenNextSegmentSingleAttempt(){
     if(responseEl && txt) responseEl.textContent = txt;
   };
 
+  // Safely evaluate when recognition completes natural audio cycle
   recognitionInstance.onend = function(){
     if(recognitionActive){
       finishSegmentAndProceed();
     }
   };
 
-  recognitionInstance.onerror = function(){
+  recognitionInstance.onerror = function(event){
+    console.warn('Speech Recognition Event Info:', event.error);
+    // Even on speech error or no-speech timeout, gracefully record missed attempt and step forward once
     if(recognitionActive){
       finishSegmentAndProceed();
     }
@@ -507,12 +515,20 @@ function listenNextSegmentSingleAttempt(){
     recognitionInstance.start();
   } catch(e) {
     console.error(e);
+    if(recognitionActive){
+      finishSegmentAndProceed();
+    }
   }
 }
 
 function finishSegmentAndProceed(){
+  // Prevent duplicate trigger execution loop
   if(recognitionInstance){
-    try{ recognitionInstance.stop(); }catch(e){}
+    try{ 
+      recognitionInstance.onend = null; 
+      recognitionInstance.onerror = null;
+      recognitionInstance.stop(); 
+    }catch(e){}
   }
 
   const expectedEl = document.querySelector('#voice-box-' + currentCardIdx + '-' + currentPartIdx + ' .voice-expected');
@@ -529,12 +545,18 @@ function finishSegmentAndProceed(){
   updateKuralScore(currentCardIdx);
   updateOverallScore();
 
+  // Increment step strictly once after storing response
   currentPartIdx++;
 
   if(recognitionActive){
-    setTimeout(listenNextSegmentSingleAttempt, 200);
+    // Small delay ensures previous instance releases audio input before starting next box
+    setTimeout(() => {
+      listenNextSegmentSingleAttempt();
+    }, 400);
   }
 }
+
+
 
 function stopVoiceRecognition(){
   recognitionActive = false;
