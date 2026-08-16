@@ -141,6 +141,9 @@ sidebar.collapsed{width:0;min-width:0;overflow:hidden;border-right:0}
 </div>
 
 <script>
+// REPLACE WITH YOUR DEPLOYED GOOGLE APPS SCRIPT WEB APP EXEC URL
+const GAS_API_URL = "YOUR_GAS_WEB_APP_EXEC_URL"; 
+
 const adhikaramList = [
 "1. கடவுள் வாழ்த்து","2. வான் சிறப்பு","3. நீத்தார் பெருமை","4. அறன் வலியுறுத்தல்","5. இல்வாழ்க்கை",
 "6. வாழ்க்கைத்துணை நலம்","7. மக்கட்பேறு","8. அன்புடைமை","9. விருந்தோம்பல்","10. இனியவை கூறல்",
@@ -246,20 +249,20 @@ function fetchCustomKurals(numbersArray){
   if(!container) return;
   container.innerHTML = '<div class="loader">⏳ உண்மையான திருக்குறள் தரவு பெறப்படுகிறது...</div>';
 
-  if(!(typeof google !== 'undefined' && google.script && google.script.run)){
-    showError('Google Apps Script சுற்றுச்சூழல் கிடைக்கவில்லை.');
-    return;
-  }
-
-  google.script.run
-    .withSuccessHandler(data => {
-      loadedKurals = data || {};
-      renderKuralsGrid([...new Set(numbersArray.map(Number))]);
+  const nums = numbersArray.join(',');
+  fetch(`${GAS_API_URL}?numbers=${nums}`)
+    .then(res => res.json())
+    .then(res => {
+      if (res.status === 'success') {
+        loadedKurals = res.data || {};
+        renderKuralsGrid([...new Set(numbersArray.map(Number))]);
+      } else {
+        showError(res.message || 'தரவு பெறப்படவில்லை.');
+      }
     })
-    .withFailureHandler(err => {
-      showError((err && err.message) ? err.message : 'திருக்குறள் தரவைப் பெறுவதில் பிழை ஏற்பட்டது.');
-    })
-    .getKuralsData(numbersArray);
+    .catch(err => {
+      showError('API இணைப்பில் பிழை: ' + err.message);
+    });
 }
 
 function showError(message){
@@ -461,7 +464,6 @@ function listenNextSegment(){
     console.error(e);
   }
 
-  // Set timer to exactly 6 seconds per box
   clearTimeout(segmentTimer);
   segmentTimer = setTimeout(() => {
     finishSegmentAndProceed();
@@ -679,22 +681,26 @@ function searchByWord(word){
   stopSpeech(); stopVoiceRecognition();
   document.getElementById('kuralsContainer').innerHTML = '<div class="loader">⏳ 1330 குறள்களில் தேடப்படுகிறது...</div>';
 
-  google.script.run
-    .withSuccessHandler(all => {
-      const allData = all || {};
-      const matches = Object.keys(allData).map(Number).filter(n => {
-        const k = allData[n];
-        return String(k.text || '').toLocaleLowerCase().indexOf(term) !== -1;
-      }).sort((a, b) => a - b);
+  fetch(`${GAS_API_URL}?action=searchAll`)
+    .then(res => res.json())
+    .then(res => {
+      if (res.status === 'success') {
+        const allData = res.data || {};
+        const matches = Object.keys(allData).map(Number).filter(n => {
+          const k = allData[n];
+          return String(k.text || '').toLocaleLowerCase().indexOf(term) !== -1;
+        }).sort((a, b) => a - b);
 
-      if(!matches.length){ showError('“' + escapeHtml(word) + '” என்ற சொல் எந்தக் குறளிலும் கிடைக்கவில்லை.'); return; }
-      loadedKurals = {};
-      matches.forEach(n => loadedKurals[n] = allData[n]);
-      document.getElementById('currentTitle').textContent = '🔎 “' + word + '” — ' + matches.length + ' குறள்கள்';
-      renderKuralsGrid(matches);
+        if(!matches.length){ showError('“' + escapeHtml(word) + '” என்ற சொல் எந்தக் குறளிலும் கிடைக்கவில்லை.'); return; }
+        loadedKurals = {};
+        matches.forEach(n => loadedKurals[n] = allData[n]);
+        document.getElementById('currentTitle').textContent = '🔎 “' + word + '” — ' + matches.length + ' குறள்கள்';
+        renderKuralsGrid(matches);
+      } else {
+        showError(res.message || 'தேடலில் பிழை ஏற்பட்டது.');
+      }
     })
-    .withFailureHandler(err => showError(err && err.message ? err.message : 'சொல் தேடலில் பிழை ஏற்பட்டது.'))
-    .getAllKuralsForSearch();
+    .catch(err => showError('தேடல் பிழை: ' + err.message));
 }
 
 function clearKuralSearch(){
@@ -732,18 +738,23 @@ function showFinalReport(){
 
   document.getElementById('reportModal').classList.add('show');
 
-  google.script.run
-    .withSuccessHandler(() => {})
-    .withFailureHandler(err => console.error(err))
-    .logUserLearningStatus(
-      studentInfo.name,
-      studentInfo.whatsapp,
-      studentInfo.emis,
-      kurals.join(', '),
-      new Date().toISOString(),
-      usedSeconds,
-      score
-    );
+  const payload = {
+    studentName: studentInfo.name,
+    whatsapp: studentInfo.whatsapp,
+    emis: studentInfo.emis,
+    kuralNumbers: kurals.join(', '),
+    startedAt: new Date().toISOString(),
+    usedSeconds: usedSeconds,
+    score: score
+  };
+
+  fetch(GAS_API_URL, {
+    method: 'POST',
+    body: JSON.stringify(payload)
+  })
+  .then(res => res.json())
+  .then(res => console.log('Report sync response:', res))
+  .catch(err => console.error('Report sync error:', err));
 }
 </script>
 </body>
