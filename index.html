@@ -142,7 +142,7 @@ sidebar.collapsed{width:0;min-width:0;overflow:hidden;border-right:0}
 
 <script>
 // REPLACE WITH YOUR DEPLOYED GOOGLE APPS SCRIPT WEB APP EXEC URL
-const GAS_API_URL = "https://script.google.com/macros/s/AKfycbxecc74YpZMIc8GZfz4pGf5goKOFYzvtqnQFqu0olKCaAFeW5EJ-yW_T1epaDtcPNSh/exec"; 
+const GAS_API_URL = "YOUR_GAS_WEB_APP_EXEC_URL"; 
 
 const adhikaramList = [
 "1. கடவுள் வாழ்த்து","2. வான் சிறப்பு","3. நீத்தார் பெருமை","4. அறன் வலியுறுத்தல்","5. இல்வாழ்க்கை",
@@ -429,7 +429,7 @@ function listenNextSegment(){
   if(activeBox) activeBox.classList.add('listening-box');
 
   const responseEl = document.getElementById('voice-response-' + currentCardIdx + '-' + currentPartIdx);
-  if(responseEl) responseEl.textContent = '🎙 பேசுங்கள் (6s)...';
+  if(responseEl) responseEl.textContent = '🎙 பேசுங்கள் (3s)...';
 
   capturedTranscript = "";
 
@@ -467,7 +467,7 @@ function listenNextSegment(){
   clearTimeout(segmentTimer);
   segmentTimer = setTimeout(() => {
     finishSegmentAndProceed();
-  }, 6000);
+  }, 3000);
 }
 
 function finishSegmentAndProceed(){
