@@ -28,7 +28,6 @@ sidebar.collapsed{width:0;min-width:0;overflow:hidden;border-right:0}
 .control-bar{padding:3px 6px;background:var(--card);border-bottom:1px solid #334155;display:flex;align-items:center;gap:6px;min-height:36px}
 .current-title{font-size:12px;font-weight:bold;color:var(--accent);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1}
 
-/* Autofit Search Box */
 .search-box{display:flex;align-items:center;gap:3px;flex:0 0 auto;width:auto;order:-1}
 .search-box input{width:130px;background:#0f172a;color:#f8fafc;border:1px solid #64748b;border-radius:3px;padding:3px 5px;font-size:11px}
 
@@ -53,9 +52,8 @@ sidebar.collapsed{width:0;min-width:0;overflow:hidden;border-right:0}
 .kural-line-wrapper{display:flex;justify-content:space-between;align-items:flex-start;width:100%;gap:4px}
 .kural-text{font-size:clamp(11px,1.25vh,14px);font-weight:600;line-height:1.3;flex:1;cursor:pointer}
 
-/* Phrase Highlighting & Separator */
 .kural-pipe{color:var(--pipe-color);font-weight:bold;padding:0 3px}
-.phrase-span{display:inline;border-radius:2px;padding:1px 2px;transition:background 0.1s ease}
+.phrase-span{display:inline;border-radius:2px;padding:1px 2px;transition:background 0.05s ease}
 .phrase-span.active-phrase{background:var(--highlight);color:#000;font-weight:bold}
 
 .kural-number-badge{background:rgba(234,179,8,.15);color:var(--accent);font-size:10px;font-weight:bold;padding:1px 4px;border-radius:3px;border:1px solid var(--accent);white-space:nowrap;flex-shrink:0}
@@ -170,8 +168,11 @@ sidebar.collapsed{width:0;min-width:0;overflow:hidden;border-right:0}
   </div>
 </div>
 
+
+
+
 <script>
-const GAS_API_URL = "https://script.google.com/macros/s/AKfycbx9Fh5oCHSB4UoY9vUr3TXtUfU2RUgEslnywRR8RMlT2FIZBM76Ux3OxSNMIXObaURc/exec"; 
+const GAS_API_URL = "https://script.google.com/macros/s/AKfycbysV8bHgXoa8WaHBZAM2eZ6VMwk-OvA9M1Xoq6fDEsGAIZV4LUzFNIbcJEtWkAi2I08/exec"; 
 
 const adhikaramList = [
 "1. கடவுள் வாழ்த்து","2. வான் சிறப்பு","3. நீத்தார் பெருமை","4. அறன் வலியுறுத்தல்","5. இல்வாழ்க்கை",
@@ -284,9 +285,15 @@ function fetchCustomKurals(numbersArray, autoStartMic = false){
       if (res.status === 'success') {
         loadedKurals = res.data || {};
         renderKuralsGrid([...new Set(numbersArray.map(Number))]);
-        if(autoStartMic && recognitionActive){
+        if(autoStartMic){
+          recognitionActive = true;
           currentCardIdx = 0;
           currentPartIdx = 0;
+          const masterBtn = document.getElementById('btnMasterMic');
+          if(masterBtn){
+            masterBtn.classList.add('listening');
+            masterBtn.textContent = '⏹ நிறுத்து';
+          }
           setTimeout(listenNextSegmentSingleAttempt, 300);
         }
       } else {
@@ -561,7 +568,7 @@ function finishSegmentAndProceed(){
   if(recognitionActive){
     setTimeout(() => {
       listenNextSegmentSingleAttempt();
-    }, 400);
+    }, 100);
   }
 }
 
@@ -646,7 +653,6 @@ function checkKuralCompleted(cardIdx){
   }
 }
 
-/* Fast Phrase-by-Phrase Sequential TTS Playback with 50% Reduced Inter-Phrase Delays */
 function speakPhraseSequence(cardIdx, phraseIdx){
   if(!isPlaying) return;
 
@@ -658,27 +664,23 @@ function speakPhraseSequence(cardIdx, phraseIdx){
 
   const boxes = card.querySelectorAll('.voice-expected');
   if(phraseIdx >= boxes.length){
-    // Card finished, proceed to next card after brief transition pause
     const nextCard = cardIdx + 1;
     const cards = document.querySelectorAll('.kural-card');
     if(nextCard < cards.length){
-      setTimeout(() => speakPhraseSequence(nextCard, 0), 150);
+      speakPhraseSequence(nextCard, 0);
     } else {
       stopSpeech();
     }
     return;
   }
 
-  // Clear previous phrase highlights
   document.querySelectorAll('.phrase-span').forEach(el => el.classList.remove('active-phrase'));
 
-  // Highlight current phrase specifically on phrase index (split on '|')
   const currentSpan = document.getElementById(`phrase-${cardIdx}-${phraseIdx}`);
   if(currentSpan) currentSpan.classList.add('active-phrase');
 
   const rawPhrase = boxes[phraseIdx].innerText;
-  // Clean internal punctuation to make utterance continuous without inner delays
-  const cleanPhrase = rawPhrase.replace(/[.,!?;:]/g, '').trim();
+  const cleanPhrase = rawPhrase.replace(/[.,!?;:|]/g, ' ').replace(/\s+/g, ' ').trim();
 
   const speedRate = parseFloat(document.getElementById('ttsSpeedSelect').value) || 1.0;
   const utterance = new SpeechSynthesisUtterance(cleanPhrase);
@@ -688,8 +690,7 @@ function speakPhraseSequence(cardIdx, phraseIdx){
   utterance.onend = () => {
     if(currentSpan) currentSpan.classList.remove('active-phrase');
     if(isPlaying){
-      // Reduced delay by 50% (~150ms) between phrases
-      setTimeout(() => speakPhraseSequence(cardIdx, phraseIdx + 1), 150);
+      speakPhraseSequence(cardIdx, phraseIdx + 1);
     }
   };
 
