@@ -1,36 +1,67 @@
 /***************************************************************
  * AMelur-Thirukkural
- * Code.gs — REAL KURALS DIRECTLY FROM USER'S GOOGLE SHEET
- *
- * SOURCE:
- * Spreadsheet ID:
- * 13JdpPtzsZOZ4s6S9Hfih6lN0c5-0VJTdwBTLBtT0y4k
- *
- * Source range:
- * C1:D1331
- *
- * C1 = கு_எண்
- * D1 = குறள்
- *
- * Rows 2:1331 contain the 1330 real Kurals.
+ * Code.gs — REST API BACKEND FOR GITHUB PAGES & APPS SCRIPT
  ***************************************************************/
 
-const KURAL_SOURCE_SPREADSHEET_ID =
-  '13JdpPtzsZOZ4s6S9Hfih6lN0c5-0VJTdwBTLBtT0y4k';
-
+const KURAL_SOURCE_SPREADSHEET_ID = '13JdpPtzsZOZ4s6S9Hfih6lN0c5-0VJTdwBTLBtT0y4k';
 const KURAL_SOURCE_START_ROW = 2;
 const KURAL_SOURCE_NUM_COLUMN = 3;
 const KURAL_SOURCE_TEXT_COLUMN = 4;
 const KURAL_SOURCE_COUNT = 1330;
 const KURAL_CACHE_SECONDS = 21600;
 
-function doGet() {
-  return HtmlService
-    .createHtmlOutputFromFile('index')
-    .setTitle(
-      'ஊராட்சி ஒன்றியத் தொடக்கப் பள்ளி, அஞ்சலம் மேலூர் - திருக்குறள் செயலி'
-    )
-    .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
+function doGet(e) {
+  try {
+    const action = e && e.parameter ? e.parameter.action : null;
+    
+    if (action === 'searchAll') {
+      const allData = loadAllSourceKurals_();
+      return createJsonResponse({ status: 'success', data: allData });
+    }
+
+    if (e && e.parameter && e.parameter.numbers) {
+      const numbersArray = e.parameter.numbers.split(',').map(Number);
+      const data = getKuralsData(numbersArray);
+      return createJsonResponse({ status: 'success', data: data });
+    }
+
+    // Default: Return initial 10 Kurals (1-10)
+    const defaultNumbers = Array.from({ length: 10 }, (_, i) => i + 1);
+    const initialData = getKuralsData(defaultNumbers);
+    return createJsonResponse({ status: 'success', data: initialData });
+
+  } catch (err) {
+    return createJsonResponse({ status: 'error', message: err.toString() });
+  }
+}
+
+function doPost(e) {
+  try {
+    const contents = e.postData ? e.postData.contents : null;
+    if (!contents) {
+      return createJsonResponse({ status: 'error', message: 'No payload received' });
+    }
+
+    const payload = JSON.parse(contents);
+    const resultMsg = logUserLearningStatus(
+      payload.studentName,
+      payload.whatsapp,
+      payload.emis,
+      payload.kuralNumbers,
+      payload.startedAt,
+      payload.usedSeconds,
+      payload.score
+    );
+
+    return createJsonResponse({ status: 'success', message: resultMsg });
+  } catch (err) {
+    return createJsonResponse({ status: 'error', message: err.toString() });
+  }
+}
+
+function createJsonResponse(data) {
+  return ContentService.createTextOutput(JSON.stringify(data))
+    .setMimeType(ContentService.MimeType.JSON);
 }
 
 function getKuralsData(numbersArray) {
@@ -52,9 +83,7 @@ function getKuralsData(numbersArray) {
   const missing = [];
 
   numbers.forEach(n => {
-    const cached = CacheService.getScriptCache()
-      .get('SHEET_REAL_KURAL_' + n);
-
+    const cached = CacheService.getScriptCache().get('SHEET_REAL_KURAL_' + n);
     if (cached) {
       try {
         const record = JSON.parse(cached);
@@ -69,7 +98,6 @@ function getKuralsData(numbersArray) {
 
   if (missing.length) {
     const sourceRecords = loadAllSourceKurals_();
-
     missing.forEach(n => {
       const record = sourceRecords[n];
       if (record && isValidKuralRecord_(record, n)) {
@@ -84,13 +112,8 @@ function getKuralsData(numbersArray) {
   }
 
   const unavailable = numbers.filter(n => !result[n]);
-
   if (unavailable.length) {
-    throw new Error(
-      'உங்கள் Google Sheet-ல் இந்த குறள் எண்கள் கிடைக்கவில்லை: ' +
-      unavailable.join(', ') +
-      '. C1:D1331 தரவைச் சரிபார்க்கவும்.'
-    );
+    throw new Error('குறள் எண்கள் கிடைக்கவில்லை: ' + unavailable.join(', '));
   }
 
   return result;
@@ -130,12 +153,7 @@ function loadAllSourceKurals_() {
     const number = Number(numberText.replace(/[^\d]/g, ''));
     const fullText = String(row[1] || '').trim();
 
-    if (
-      !Number.isInteger(number) ||
-      number < 1 ||
-      number > 1330 ||
-      !fullText
-    ) {
+    if (!Number.isInteger(number) || number < 1 || number > 1330 || !fullText) {
       return;
     }
 
@@ -153,19 +171,11 @@ function loadAllSourceKurals_() {
   return records;
 }
 
-/**
- * The "|" characters in column D define the Voice Recognition parts.
- * Example:
- * "முதல் பகுதி | இரண்டாம் பகுதி"
- * becomes two recognition boxes.
- */
 function splitVoiceParts_(text) {
   const value = String(text || '').trim();
-
   if (value.indexOf('|') === -1) {
     return [value];
   }
-
   return value
     .split('|')
     .map(s => s.trim())
@@ -174,92 +184,29 @@ function splitVoiceParts_(text) {
 }
 
 function isValidKuralRecord_(record, expectedNumber) {
-  if (!record) return false;
-
-  if (Number(record.num) !== Number(expectedNumber)) {
-    return false;
-  }
-
-  if (typeof record.text !== 'string' || !record.text.trim()) {
-    return false;
-  }
-
-  if (!Array.isArray(record.voiceParts) || !record.voiceParts.length) {
-    return false;
-  }
-
-  const combined = record.text.toLowerCase();
-
-  const forbidden = [
-    'முதலடி தமிழ் வாசிப்பு',
-    'இரண்டாமடி தமிழ் வாசிப்பு',
-    'placeholder',
-    'demo',
-    'sample text'
-  ];
-
-  for (let i = 0; i < forbidden.length; i++) {
-    if (combined.indexOf(forbidden[i].toLowerCase()) !== -1) {
-      return false;
-    }
-  }
-
+  if (!record || Number(record.num) !== Number(expectedNumber)) return false;
+  if (typeof record.text !== 'string' || !record.text.trim()) return false;
+  if (!Array.isArray(record.voiceParts) || !record.voiceParts.length) return false;
   return true;
 }
 
-function getAllKuralsForSearch() {
-  return loadAllSourceKurals_();
-}
-
-/**
- * Student learning report.
- */
-function logUserLearningStatus(
-  studentName,
-  whatsapp,
-  emis,
-  kuralNumbers,
-  startedAt,
-  usedSeconds,
-  score
-) {
+function logUserLearningStatus(studentName, whatsapp, emis, kuralNumbers, startedAt, usedSeconds, score) {
   try {
     const name = String(studentName || '').trim();
     const wa = String(whatsapp || '').trim();
     const emisId = String(emis || '').trim();
     const completed = String(kuralNumbers || '').trim();
 
-    if (!name) return 'மாணவர் பெயர் தேவை.';
-    if (!wa) return 'WhatsApp எண் தேவை.';
-    if (!emisId) return 'EMIS ID தேவை.';
+    if (!name || !wa || !emisId) return 'மாணவர் விவரங்கள் அரைகுறையாக உள்ளன.';
 
-    const ss = SpreadsheetApp.getActiveSpreadsheet();
-    if (!ss) return 'Google Spreadsheet இணைக்கப்படவில்லை.';
-
+    const ss = SpreadsheetApp.openById(KURAL_SOURCE_SPREADSHEET_ID);
     let sheet = ss.getSheetByName('Report');
     if (!sheet) sheet = ss.insertSheet('Report');
 
-    const headers = [
-      'Date',
-      'Student Name',
-      'WhatsApp',
-      'EMIS ID',
-      'Completed Kurals',
-      'Score',
-      'Used Time (sec)'
-    ];
+    const headers = ['Date', 'Student Name', 'WhatsApp', 'EMIS ID', 'Completed Kurals', 'Score', 'Used Time (sec)'];
 
     if (sheet.getLastRow() === 0) {
       sheet.appendRow(headers);
-    } else {
-      const width = Math.max(sheet.getLastColumn(), headers.length);
-      const current = sheet.getRange(1,1,1,width).getDisplayValues()[0];
-
-      headers.forEach((header,index) => {
-        if (String(current[index] || '').trim() !== header) {
-          sheet.getRange(1,index+1).setValue(header);
-        }
-      });
     }
 
     sheet.appendRow([
