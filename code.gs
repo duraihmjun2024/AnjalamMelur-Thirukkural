@@ -26,7 +26,7 @@ const KURAL_CACHE_SECONDS = 21600;
 
 function doGet() {
   return HtmlService
-    .createHtmlOutputFromFile('Index')
+    .createHtmlOutputFromFile('index')
     .setTitle(
       'ஊராட்சி ஒன்றியத் தொடக்கப் பள்ளி, அஞ்சலம் மேலூர் - திருக்குறள் செயலி'
     )
