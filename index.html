@@ -169,7 +169,7 @@ sidebar.collapsed{width:0;min-width:0;overflow:hidden;border-right:0}
 </div>
 
 <script>
-const GAS_API_URL = "https://script.google.com/macros/s/AKfycbyZM-X0TPiw3lShr_W3CMPozYkNrCkj-FiqJHl6nXlCZ14yH0VfCpe3NdpQ-U9xenuq/exec"; 
+const GAS_API_URL = "https://script.google.com/macros/s/AKfycbzO7igGe_yFOqqMdIhpBj76vuV1J2wUlKUip1CHXRWnqOcD25YOSHGOlUC-zlk9VYiS/exec"; 
 
 const adhikaramList = [
 "1. கடவுள் வாழ்த்து","2. வான் சிறப்பு","3. நீத்தார் பெருமை","4. அறன் வலியுறுத்தல்","5. இல்வாழ்க்கை",
@@ -291,7 +291,7 @@ function fetchCustomKurals(numbersArray, autoStartMic = false){
             masterBtn.classList.add('listening');
             masterBtn.textContent = '⏹ நிறுத்து';
           }
-          setTimeout(listenNextSegmentSingleAttempt, 300);
+          listenNextSegmentSingleAttempt();
         }
       } else {
         showError(res.message || 'தரவு பெறப்படவில்லை.');
@@ -309,19 +309,23 @@ function escapeHtml(value){
   return String(value ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
 }
 
-function renderFormattedKuralText(text, cardIdx){
+function getKuralPhrases(text){
   const clean = String(text || '').trim();
-  if(!clean.includes('|')) {
-    return `<span class="phrase-span" id="phrase-${cardIdx}-0">${escapeHtml(clean)}</span>`;
+  if(!clean) return [];
+  if(clean.includes('|')){
+    return clean.split('|').map(s => s.trim()).filter(Boolean);
   }
+  return [clean];
+}
 
-  const parts = clean.split('|');
-  const part1 = parts[0].trim();
-  const part2 = parts.slice(1).join('|').trim();
-
-  return `<span class="phrase-span" id="phrase-${cardIdx}-0">${escapeHtml(part1)}</span>` +
-         ` <span class="kural-pipe">|</span> ` +
-         `<span class="phrase-span" id="phrase-${cardIdx}-1">${escapeHtml(part2)}</span>`;
+function renderFormattedKuralText(text, cardIdx){
+  const parts = getKuralPhrases(text);
+  if(parts.length <= 1){
+    return `<span class="phrase-span" id="phrase-${cardIdx}-0">${escapeHtml(parts[0] || text)}</span>`;
+  }
+  return parts.map((p, idx) => 
+    `<span class="phrase-span" id="phrase-${cardIdx}-${idx}">${escapeHtml(p)}</span>`
+  ).join(` <span class="kural-pipe">|</span> `);
 }
 
 function renderKuralsGrid(numbersArray){
@@ -344,15 +348,7 @@ function renderKuralsGrid(numbersArray){
     card.id = 'kural-card-' + i;
 
     const fullKural = String(kural.text || '').trim();
-    
-    let parts = [];
-    if(fullKural.includes('|')){
-      parts = fullKural.split('|').map(s => s.trim()).filter(Boolean);
-    } else if(Array.isArray(kural.voiceParts) && kural.voiceParts.length) {
-      parts = kural.voiceParts;
-    } else {
-      parts = [fullKural];
-    }
+    const parts = getKuralPhrases(fullKural);
 
     const voiceBoxes = parts.map((part, p) =>
       '<div class="voice-box" id="voice-box-' + i + '-' + p + '">' +
@@ -563,9 +559,7 @@ function finishSegmentAndProceed(){
   currentPartIdx++;
 
   if(recognitionActive){
-    setTimeout(() => {
-      listenNextSegmentSingleAttempt();
-    }, 100);
+    listenNextSegmentSingleAttempt();
   }
 }
 
