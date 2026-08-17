@@ -7,7 +7,7 @@
 <style>
 :root{
   --bg:#0f172a;--card:#1e293b;--accent:#eab308;--text:#f8fafc;
-  --muted:#cbd5e1;--highlight:#facc15;--danger:#ef4444;--ok:#22c55e;
+  --muted:#cbd5e1;--highlight:#06b6d4;--danger:#ef4444;--ok:#22c55e;
   --pipe-color:#f59e0b;
 }
 *{box-sizing:border-box;margin:0;padding:0;font-family:'Latha','Noto Sans Tamil','Vijaya',Arial,sans-serif}
@@ -53,8 +53,8 @@ sidebar.collapsed{width:0;min-width:0;overflow:hidden;border-right:0}
 .kural-text{font-size:clamp(11px,1.25vh,14px);font-weight:600;line-height:1.3;flex:1;cursor:pointer}
 
 .kural-pipe{color:var(--pipe-color);font-weight:bold;padding:0 3px}
-.phrase-span{display:inline;border-radius:2px;padding:1px 2px;transition:background 0.05s ease}
-.phrase-span.active-phrase{background:var(--highlight);color:#000;font-weight:bold}
+.phrase-span{display:inline;border-radius:2px;padding:1px 2px;transition:background 0.01s ease}
+.phrase-span.active-phrase{background:var(--highlight);color:#000000;font-weight:bold;box-shadow:0 0 6px var(--highlight)}
 
 .kural-number-badge{background:rgba(234,179,8,.15);color:var(--accent);font-size:10px;font-weight:bold;padding:1px 4px;border-radius:3px;border:1px solid var(--accent);white-space:nowrap;flex-shrink:0}
 .voice-response-row{display:flex;flex-direction:column;gap:3px;margin-top:4px;width:100%}
@@ -169,7 +169,7 @@ sidebar.collapsed{width:0;min-width:0;overflow:hidden;border-right:0}
 </div>
 
 <script>
-const GAS_API_URL = "https://script.google.com/macros/s/AKfycbzO7igGe_yFOqqMdIhpBj76vuV1J2wUlKUip1CHXRWnqOcD25YOSHGOlUC-zlk9VYiS/exec"; 
+const GAS_API_URL = "https://script.google.com/macros/s/AKfycbx1EHwYDlSktPuweKIqFZmKEaqm29SP6hBvpbkgdOZIg4s8BxdpuLGcUS_FYydcKLuO/exec"; 
 
 const adhikaramList = [
 "1. கடவுள் வாழ்த்து","2. வான் சிறப்பு","3. நீத்தார் பெருமை","4. அறன் வலியுறுத்தல்","5. இல்வாழ்க்கை",
@@ -215,6 +215,7 @@ let currentPartIdx = 0;
 let recognitionScores = {};
 let completedKurals = new Set();
 let capturedTranscript = "";
+let responseTimeoutTimer = null;
 
 document.addEventListener('DOMContentLoaded', () => {
   renderAdhikaramSidebar();
@@ -442,7 +443,15 @@ function startSequentialRecognition(){
   listenNextSegmentSingleAttempt();
 }
 
+function clearResponseTimer(){
+  if(responseTimeoutTimer){
+    clearTimeout(responseTimeoutTimer);
+    responseTimeoutTimer = null;
+  }
+}
+
 function listenNextSegmentSingleAttempt(){
+  clearResponseTimer();
   if(!recognitionActive) return;
 
   const card = document.getElementById('kural-card-' + currentCardIdx);
@@ -471,6 +480,7 @@ function listenNextSegmentSingleAttempt(){
 
   document.querySelectorAll('.kural-card').forEach(c => c.classList.remove('active-rec'));
   document.querySelectorAll('.voice-box').forEach(b => b.classList.remove('listening-box'));
+  document.querySelectorAll('.phrase-span').forEach(el => el.classList.remove('active-phrase'));
 
   const activeCard = document.getElementById('kural-card-' + currentCardIdx);
   if(activeCard) {
@@ -478,11 +488,14 @@ function listenNextSegmentSingleAttempt(){
     activeCard.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   }
 
+  const activeSpan = document.getElementById(`phrase-${currentCardIdx}-${currentPartIdx}`);
+  if(activeSpan) activeSpan.classList.add('active-phrase');
+
   const activeBox = document.getElementById('voice-box-' + currentCardIdx + '-' + currentPartIdx);
   if(activeBox) activeBox.classList.add('listening-box');
 
   const responseEl = document.getElementById('voice-response-' + currentCardIdx + '-' + currentPartIdx);
-  if(responseEl) responseEl.textContent = '🎙 ஒரு முறை பேசவும் (Single Attempt)...';
+  if(responseEl) responseEl.textContent = '🎙 பேசவும் (10s max)...';
 
   capturedTranscript = "";
 
@@ -490,6 +503,7 @@ function listenNextSegmentSingleAttempt(){
   if(recognitionInstance){ 
     try{ 
       recognitionInstance.onend = null; 
+      recognitionInstance.onerror = null;
       recognitionInstance.abort(); 
     }catch(e){} 
   }
@@ -513,12 +527,14 @@ function listenNextSegmentSingleAttempt(){
   };
 
   recognitionInstance.onend = function(){
+    clearResponseTimer();
     if(recognitionActive){
       finishSegmentAndProceed();
     }
   };
 
   recognitionInstance.onerror = function(){
+    clearResponseTimer();
     if(recognitionActive){
       finishSegmentAndProceed();
     }
@@ -526,6 +542,11 @@ function listenNextSegmentSingleAttempt(){
 
   try {
     recognitionInstance.start();
+    responseTimeoutTimer = setTimeout(() => {
+      if(recognitionActive){
+        finishSegmentAndProceed();
+      }
+    }, 10000);
   } catch(e) {
     if(recognitionActive){
       finishSegmentAndProceed();
@@ -534,6 +555,7 @@ function listenNextSegmentSingleAttempt(){
 }
 
 function finishSegmentAndProceed(){
+  clearResponseTimer();
   if(recognitionInstance){
     try{ 
       recognitionInstance.onend = null; 
@@ -541,6 +563,9 @@ function finishSegmentAndProceed(){
       recognitionInstance.stop(); 
     }catch(e){}
   }
+
+  const activeSpan = document.getElementById(`phrase-${currentCardIdx}-${currentPartIdx}`);
+  if(activeSpan) activeSpan.classList.remove('active-phrase');
 
   const expectedEl = document.querySelector('#voice-box-' + currentCardIdx + '-' + currentPartIdx + ' .voice-expected');
   const expected = expectedEl ? expectedEl.innerText : '';
@@ -564,10 +589,12 @@ function finishSegmentAndProceed(){
 }
 
 function stopVoiceRecognition(){
+  clearResponseTimer();
   recognitionActive = false;
   if(recognitionInstance){ try{ recognitionInstance.abort(); }catch(e){} }
   document.querySelectorAll('.kural-card').forEach(c => c.classList.remove('active-rec'));
   document.querySelectorAll('.voice-box').forEach(b => b.classList.remove('listening-box'));
+  document.querySelectorAll('.phrase-span').forEach(el => el.classList.remove('active-phrase'));
   const masterBtn = document.getElementById('btnMasterMic');
   if(masterBtn){
     masterBtn.classList.remove('listening');
@@ -578,7 +605,7 @@ function stopVoiceRecognition(){
 function setVoiceResponse(cardIdx, partIdx, text, correct){
   const el = document.getElementById('voice-response-' + cardIdx + '-' + partIdx);
   const scoreEl = document.getElementById('voice-score-' + cardIdx + '-' + partIdx);
-  if(el) el.textContent = text || '(பதில் இல்லை)';
+  if(el) el.textContent = text || '(நேரம் முடிந்தது / பதில் இல்லை)';
   if(scoreEl){
     scoreEl.textContent = correct ? '10' : '0';
     scoreEl.className = 'voice-score ' + (correct ? 'correct' : 'wrong');
