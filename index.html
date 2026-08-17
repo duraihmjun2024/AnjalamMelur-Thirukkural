@@ -169,7 +169,7 @@ sidebar.collapsed{width:0;min-width:0;overflow:hidden;border-right:0}
 </div>
 
 <script>
-const GAS_API_URL = "https://script.google.com/macros/s/AKfycbx1EHwYDlSktPuweKIqFZmKEaqm29SP6hBvpbkgdOZIg4s8BxdpuLGcUS_FYydcKLuO/exec"; 
+const GAS_API_URL = "https://script.google.com/macros/s/AKfycbzy2nCEYleWk50Rfa1N4z86rieER3K7S_nTw1QCZNeOYcwTiIF2FL5I1MXaGBOpghWK/exec"; 
 
 const adhikaramList = [
 "1. கடவுள் வாழ்த்து","2. வான் சிறப்பு","3. நீத்தார் பெருமை","4. அறன் வலியுறுத்தல்","5. இல்வாழ்க்கை",
@@ -329,6 +329,14 @@ function renderFormattedKuralText(text, cardIdx){
   ).join(` <span class="kural-pipe">|</span> `);
 }
 
+function getTimeoutDuration(totalParts, partIndex) {
+  if (totalParts === 1) return 10000;
+  if (totalParts === 2) {
+    return partIndex === 0 ? 6000 : 4000;
+  }
+  return 3000;
+}
+
 function renderKuralsGrid(numbersArray){
   const container = document.getElementById('kuralsContainer');
   if(!container) return;
@@ -351,15 +359,17 @@ function renderKuralsGrid(numbersArray){
     const fullKural = String(kural.text || '').trim();
     const parts = getKuralPhrases(fullKural);
 
-    const voiceBoxes = parts.map((part, p) =>
-      '<div class="voice-box" id="voice-box-' + i + '-' + p + '">' +
-        '<span class="voice-box-title">P' + (p + 1) + ':</span>' +
+    const voiceBoxes = parts.map((part, p) => {
+      const ms = getTimeoutDuration(parts.length, p);
+      const secText = (ms / 1000) + 's';
+      return '<div class="voice-box" id="voice-box-' + i + '-' + p + '">' +
+        '<span class="voice-box-title">P' + (p + 1) + ' (' + secText + '):</span>' +
         '<div class="voice-box-response" id="voice-response-' + i + '-' + p + '">காத்திருக்கிறது...</div>' +
         '<span class="voice-score" id="voice-score-' + i + '-' + p + '">0</span>' +
         '<button class="btn-next-box" title="அடுத்த பகுதிக்குச் செல்" onclick="finishSegmentAndProceed()">➔</button>' +
         '<span class="voice-expected" style="display:none">' + escapeHtml(part) + '</span>' +
-      '</div>'
-    ).join('');
+      '</div>';
+    }).join('');
 
     card.innerHTML =
       '<div class="kural-line-wrapper">' +
@@ -461,7 +471,9 @@ function listenNextSegmentSingleAttempt(){
   }
 
   const boxes = card.querySelectorAll('.voice-box');
-  if(currentPartIdx >= boxes.length){
+  const totalParts = boxes.length;
+
+  if(currentPartIdx >= totalParts){
     checkKuralCompleted(currentCardIdx);
     currentCardIdx++;
     currentPartIdx = 0;
@@ -494,8 +506,11 @@ function listenNextSegmentSingleAttempt(){
   const activeBox = document.getElementById('voice-box-' + currentCardIdx + '-' + currentPartIdx);
   if(activeBox) activeBox.classList.add('listening-box');
 
+  const timeoutMs = getTimeoutDuration(totalParts, currentPartIdx);
+  const secValue = timeoutMs / 1000;
+
   const responseEl = document.getElementById('voice-response-' + currentCardIdx + '-' + currentPartIdx);
-  if(responseEl) responseEl.textContent = '🎙 பேசவும் (10s max)...';
+  if(responseEl) responseEl.textContent = '🎙 பேசவும் (' + secValue + 's max)...';
 
   capturedTranscript = "";
 
@@ -546,7 +561,7 @@ function listenNextSegmentSingleAttempt(){
       if(recognitionActive){
         finishSegmentAndProceed();
       }
-    }, 10000);
+    }, timeoutMs);
   } catch(e) {
     if(recognitionActive){
       finishSegmentAndProceed();
