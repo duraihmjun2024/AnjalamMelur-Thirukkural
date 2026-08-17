@@ -169,7 +169,7 @@ sidebar.collapsed{width:0;min-width:0;overflow:hidden;border-right:0}
 </div>
 
 <script>
-const GAS_API_URL = "https://script.google.com/macros/s/AKfycbzy2nCEYleWk50Rfa1N4z86rieER3K7S_nTw1QCZNeOYcwTiIF2FL5I1MXaGBOpghWK/exec"; 
+const GAS_API_URL = "https://script.google.com/macros/s/AKfycbxRAmSSBU85_waw2gVltnIVFjLzg5OTL56V1q1mq2wgZ4BKdxizO-IWzY6OHWHxTZlV/exec"; 
 
 const adhikaramList = [
 "1. கடவுள் வாழ்த்து","2. வான் சிறப்பு","3. நீத்தார் பெருமை","4. அறன் வலியுறுத்தல்","5. இல்வாழ்க்கை",
@@ -216,6 +216,7 @@ let recognitionScores = {};
 let completedKurals = new Set();
 let capturedTranscript = "";
 let responseTimeoutTimer = null;
+let isTransitioning = false;
 
 document.addEventListener('DOMContentLoaded', () => {
   renderAdhikaramSidebar();
@@ -513,6 +514,7 @@ function listenNextSegmentSingleAttempt(){
   if(responseEl) responseEl.textContent = '🎙 பேசவும் (' + secValue + 's max)...';
 
   capturedTranscript = "";
+  isTransitioning = false;
 
   const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
   if(recognitionInstance){ 
@@ -543,14 +545,14 @@ function listenNextSegmentSingleAttempt(){
 
   recognitionInstance.onend = function(){
     clearResponseTimer();
-    if(recognitionActive){
+    if(recognitionActive && !isTransitioning){
       finishSegmentAndProceed();
     }
   };
 
   recognitionInstance.onerror = function(){
     clearResponseTimer();
-    if(recognitionActive){
+    if(recognitionActive && !isTransitioning){
       finishSegmentAndProceed();
     }
   };
@@ -558,19 +560,22 @@ function listenNextSegmentSingleAttempt(){
   try {
     recognitionInstance.start();
     responseTimeoutTimer = setTimeout(() => {
-      if(recognitionActive){
+      if(recognitionActive && !isTransitioning){
         finishSegmentAndProceed();
       }
     }, timeoutMs);
   } catch(e) {
-    if(recognitionActive){
+    if(recognitionActive && !isTransitioning){
       finishSegmentAndProceed();
     }
   }
 }
 
 function finishSegmentAndProceed(){
+  if(isTransitioning) return;
+  isTransitioning = true;
   clearResponseTimer();
+
   if(recognitionInstance){
     try{ 
       recognitionInstance.onend = null; 
@@ -606,6 +611,7 @@ function finishSegmentAndProceed(){
 function stopVoiceRecognition(){
   clearResponseTimer();
   recognitionActive = false;
+  isTransitioning = false;
   if(recognitionInstance){ try{ recognitionInstance.abort(); }catch(e){} }
   document.querySelectorAll('.kural-card').forEach(c => c.classList.remove('active-rec'));
   document.querySelectorAll('.voice-box').forEach(b => b.classList.remove('listening-box'));
@@ -628,13 +634,20 @@ function setVoiceResponse(cardIdx, partIdx, text, correct){
 }
 
 function normalizeVoiceText(text){
-  return String(text || '')
+  let normalized = String(text || '')
     .toLocaleLowerCase()
     .replace(/[\u200B-\u200D\uFEFF]/g, '')
-    .replace(/[.,!?;:'"“”‘’()\[\]{}\-–—|\/]/g, ' ')
-    .replace(/[^\u0B80-\u0BFFa-z0-9 ]/gi, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
+    .replace(/[.,!?;:'"“”‘’()\[\]{}\-–—|\/]/g, '')
+    .replace(/[^\u0B80-\u0BFFa-z0-9]/gi, '');
+
+  normalized = normalized
+    .replace(/ாஅ/g, 'ா')
+    .replace(/ீஇ/g, 'ீ')
+    .replace(/ூஊ/g, 'ூ')
+    .replace(/ேஏ/g, 'ே')
+    .replace(/ோஓ/g, 'ோ');
+
+  return normalized;
 }
 
 function calculateVoiceScore(expected, actual){
